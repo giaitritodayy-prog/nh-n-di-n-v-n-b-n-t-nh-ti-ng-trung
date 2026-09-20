@@ -81,24 +81,24 @@ export const SettingsModal: React.FC<Props> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {[
                 {
-                  id: 'gemini-3.6-flash',
-                  name: 'Gemini 3.6 Flash',
-                  desc: 'Khuyên dùng: Chuẩn API mới nhất, ổn định & chính xác tuyệt đối',
-                },
-                {
                   id: 'gemini-flash-latest',
                   name: 'Gemini Flash Latest',
-                  desc: 'Bản Flash mới nhất, tốc độ phản hồi nhanh',
+                  desc: 'Khuyên dùng: Tự động điều phối tải, tránh lỗi 503 cao điểm',
                 },
                 {
                   id: 'gemini-3.8-flash',
                   name: 'Gemini 3.8 Flash',
-                  desc: 'Mô hình thế hệ mới (tư duy sâu)',
+                  desc: 'Mô hình thế hệ mới (tư duy sâu & nhận diện chính xác)',
+                },
+                {
+                  id: 'gemini-3.6-flash',
+                  name: 'Gemini 3.6 Flash',
+                  desc: 'Bản Flash tiêu chuẩn chất lượng cao',
                 },
                 {
                   id: 'gemini-3.1-flash-lite',
                   name: 'Gemini 3.1 Flash Lite',
-                  desc: 'Siêu nhẹ & tiết kiệm tài nguyên',
+                  desc: 'Siêu nhẹ & tốc độ phản hồi tức thì',
                 },
               ].map((m) => (
                 <button

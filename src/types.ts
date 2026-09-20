@@ -39,3 +39,17 @@ export interface SessionStats {
   startTime: number | null;
   endTime: number | null;
 }
+
+export interface NovelChapter {
+  id: string;
+  index: number;
+  title: string;
+  fullTitle: string;
+  startLine: number;
+  endLine: number;
+  charCount: number;
+  lineCount: number;
+  content: string;
+  startPreview: string;
+  endPreview: string;
+}

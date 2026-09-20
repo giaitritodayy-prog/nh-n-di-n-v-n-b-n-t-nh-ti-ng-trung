@@ -50,7 +50,7 @@ export default function App() {
   const [config, setConfig] = useState<OcrConfig>({
     batchSize: 10,
     temperature: 0.0,
-    model: 'gemini-3.6-flash',
+    model: 'gemini-flash-latest',
     autoSort: true,
     systemInstruction: MASTER_SYSTEM_PROMPT,
     chapterDivider: true,
@@ -115,7 +115,7 @@ export default function App() {
   // Load sample demo novel images
   const handleLoadSample = async () => {
     try {
-      showToast('Đang tạo và nạp 3 trang ảnh tiểu thuyết mẫu...', 'info');
+      showToast('Đang tạo và nạp 4 trang ảnh tiểu thuyết mẫu (Chương 1, 2 & 3)...', 'info');
       const sampleItems: ImageItem[] = [];
       for (const item of SAMPLE_CHAPTER_DATA) {
         const sampleImage = await generateSampleNovelImage(item.title, item.lines, item.filename);
@@ -125,7 +125,7 @@ export default function App() {
         const combined = [...prev, ...sampleItems];
         return config.autoSort ? sortImagesNaturally(combined) : combined;
       });
-      showToast('Đã nạp thành công 3 ảnh tiểu thuyết mẫu. Bạn có thể nhấn Bắt đầu OCR ngay!', 'success');
+      showToast('Đã nạp 4 trang mẫu chứa 3 chương (Chương 1, 2, 3). Nhấn Bắt đầu OCR ngay!', 'success');
     } catch (err) {
       console.error('Error loading sample:', err);
       showToast('Không thể tạo ảnh mẫu.', 'error');

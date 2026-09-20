@@ -60,7 +60,7 @@ app.get("/api/health", (req, res) => {
 app.get("/api/prompt-info", (req, res) => {
   res.json({
     masterPrompt: DEFAULT_MASTER_PROMPT,
-    recommendedModel: "gemini-3.6-flash",
+    recommendedModel: "gemini-flash-latest",
     recommendedTemperature: 0.0,
   });
 });
@@ -88,6 +88,21 @@ function isRetryableError(error: any): boolean {
   );
 }
 
+function isHighDemand503Error(error: any): boolean {
+  const errMsg = String(error?.message || error || "").toLowerCase();
+  const status = String(error?.status || "").toUpperCase();
+  const code = error?.code || error?.status;
+  return (
+    code === 503 ||
+    status === "UNAVAILABLE" ||
+    errMsg.includes("503") ||
+    errMsg.includes("high demand") ||
+    errMsg.includes("spikes in demand") ||
+    errMsg.includes("temporarily unavailable") ||
+    errMsg.includes("overloaded")
+  );
+}
+
 function isModelNotFoundError(error: any): boolean {
   const errMsg = String(error?.message || error || "").toLowerCase();
   const status = String(error?.status || "").toUpperCase();
@@ -102,11 +117,11 @@ function isModelNotFoundError(error: any): boolean {
   );
 }
 
-// Fallback model list if the requested model experiences 503 high demand or 404 deprecation
+// Ordered fallback model list: Flash Latest has dynamic capacity routing, 3.8 and 3.6 are modern workhorses
 const FALLBACK_MODELS = [
-  "gemini-3.6-flash",
   "gemini-flash-latest",
   "gemini-3.8-flash",
+  "gemini-3.6-flash",
   "gemini-3.1-flash-lite",
 ];
 
@@ -117,7 +132,7 @@ async function generateContentWithRetryAndFallback(
 ) {
   // Filter out known discontinued models like gemini-2.5-flash
   const cleanPreferred =
-    preferredModel === "gemini-2.5-flash" ? "gemini-3.6-flash" : preferredModel;
+    preferredModel === "gemini-2.5-flash" ? "gemini-flash-latest" : preferredModel;
 
   // Build unique model candidate chain
   const modelsToTry = Array.from(
@@ -126,49 +141,67 @@ async function generateContentWithRetryAndFallback(
 
   let lastError: any = null;
 
-  for (const currentModel of modelsToTry) {
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        console.log(`[Gemini OCR] Trying model '${currentModel}' (attempt ${attempt}/${maxAttempts})...`);
-        const response = await ai.models.generateContent({
-          model: currentModel,
-          contents: generateParams.contents,
-          config: generateParams.config,
-        });
+  for (let modelIndex = 0; modelIndex < modelsToTry.length; modelIndex++) {
+    const currentModel = modelsToTry[modelIndex];
+    const nextModel = modelsToTry[modelIndex + 1] || null;
 
-        return {
-          response,
-          modelUsed: currentModel,
-        };
-      } catch (error: any) {
-        lastError = error;
-        console.warn(
-          `[Gemini OCR] Warning on model '${currentModel}' (attempt ${attempt}): ${error?.message || error}`
+    try {
+      console.log(`[Gemini OCR] Executing request with '${currentModel}'...`);
+      const response = await ai.models.generateContent({
+        model: currentModel,
+        contents: generateParams.contents,
+        config: generateParams.config,
+      });
+
+      return {
+        response,
+        modelUsed: currentModel,
+      };
+    } catch (error: any) {
+      lastError = error;
+
+      // Case 1: Model 404 (Not Found or deprecated)
+      if (isModelNotFoundError(error)) {
+        console.log(
+          `[Gemini OCR] Model '${currentModel}' not found (404). Switching instantly to ${nextModel ? `'${nextModel}'` : 'backup model'}...`
         );
+        continue;
+      }
 
-        if (isModelNotFoundError(error)) {
-          console.warn(
-            `[Gemini OCR] Model '${currentModel}' is not found or no longer available (404). Falling back to next model immediately...`
+      // Case 2: Model 503 (High Demand spike)
+      if (isHighDemand503Error(error)) {
+        if (nextModel) {
+          console.log(
+            `[Gemini OCR] Model '${currentModel}' has high demand spike (503). Instantly failing over to '${nextModel}' without stalling...`
           );
-          // Break the attempt loop for this model so we try the next fallback model
-          break;
-        }
-
-        if (isRetryableError(error)) {
-          if (attempt < maxAttempts) {
-            const delayMs = attempt * 1200 + Math.floor(Math.random() * 600);
-            console.log(`[Gemini OCR] Retrying '${currentModel}' in ${delayMs}ms due to high demand/503 spike...`);
-            await sleep(delayMs);
-            continue;
-          } else {
-            console.log(`[Gemini OCR] Model '${currentModel}' hit repeated high demand. Switching to alternative model...`);
-            break;
-          }
+          continue;
         } else {
-          // If non-retryable and not 404, throw immediately
-          throw error;
+          // Last model in the pool, give a short backoff retry
+          console.log(`[Gemini OCR] All models busy, waiting 1.5s before final attempt...`);
+          await sleep(1500);
+          try {
+            const retryRes = await ai.models.generateContent({
+              model: currentModel,
+              contents: generateParams.contents,
+              config: generateParams.config,
+            });
+            return {
+              response: retryRes,
+              modelUsed: currentModel,
+            };
+          } catch (finalErr) {
+            lastError = finalErr;
+          }
         }
+      } else if (isRetryableError(error)) {
+        // Other transient retryable errors (e.g. socket timeout, 429)
+        if (nextModel) {
+          console.log(`[Gemini OCR] Transient issue on '${currentModel}', switching to '${nextModel}'...`);
+          continue;
+        }
+      } else {
+        // Non-retryable error (e.g. invalid arguments)
+        throw error;
       }
     }
   }
@@ -176,7 +209,7 @@ async function generateContentWithRetryAndFallback(
   throw (
     lastError ||
     new Error(
-      "Máy chủ Gemini hiện đang trong thời gian cao điểm đột xuất. Vui lòng thử lại sau giây lát."
+      "Hệ thống Gemini hiện đang trong thời gian cao điểm. Vui lòng thử lại sau giây lát."
     )
   );
 }
@@ -188,7 +221,7 @@ app.post("/api/ocr", async (req, res) => {
       images,
       systemInstruction = DEFAULT_MASTER_PROMPT,
       temperature = 0.0,
-      model = "gemini-3.6-flash",
+      model = "gemini-flash-latest",
     } = req.body;
 
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -267,7 +300,7 @@ app.post("/api/ocr", async (req, res) => {
 // Optional: Quick preview translation / summary tool
 app.post("/api/quick-preview", async (req, res) => {
   try {
-    const { text, type = "translate", model = "gemini-3.6-flash" } = req.body;
+    const { text, type = "translate", model = "gemini-flash-latest" } = req.body;
     if (!text) {
       return res.status(400).json({ error: "Thiếu văn bản tiếng Trung." });
     }

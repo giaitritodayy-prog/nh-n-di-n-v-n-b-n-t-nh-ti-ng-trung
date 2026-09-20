@@ -149,4 +149,27 @@ export const SAMPLE_CHAPTER_DATA = [
       '    清朗淡漠的声音穿透漫天烟尘，在大殿每个人的耳边如春雷般炸响！',
     ],
   },
+  {
+    title: '第3章 一剑破万法',
+    filename: '04_chuong3_phan1.jpg',
+    lines: [
+      '---',
+      '第3章 一剑破万法',
+      '',
+      '    烟尘散尽，一名白衣胜雪的少年提剑缓步走入大殿。',
+      '    陆天羽手中的白玉酒杯“啪”的一声被捏得粉碎，眼中涌起难以置信的惊恐：“叶晨？！你竟然没死？！”',
+      '    满座哗然，青云宗各路长老齐齐霍然起身，剑拔弩张。',
+      '    叶晨神色未动，目光如深潭止水：“当年你夺我剑骨，废我经脉，今日我来取回属于我的一切。”',
+      '    “狂妄小儿！受死！”数名核心弟子怒喝拔剑齐齐围攻而上。',
+      '    然而，叶晨甚至未曾正眼相看，指尖在三尺青锋上一弹。',
+      '    铮——！一道浩瀚如星河的剑气骤然横扫开来，万籁俱寂！',
+    ],
+  },
 ];
+
+export {
+  parseNovelChapters,
+  formatTextWithChapterBoundaries,
+  combineChaptersText,
+  getChapterRangeDescription,
+} from './chapterParser';
